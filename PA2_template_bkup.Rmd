@@ -1,0 +1,159 @@
+---
+title: "PA2_template"
+author: "john allen"
+date: "Saturday, September 19, 2015"
+
+
+output: html_document
+---
+
+#Title: Analysis of NOAA Storm database to determine Health and Economic Impacts of Weather Events 
+
+#Synopsis
+###This project explores the U.S. National Oceanic and Atmospheric Adminstrations (NOAA) storm database.  Severe weather events can result in injuries, fatalities, and property damage. This analysis will address which events are most harmful econmically and healthwise.
+
+#Data Processing
+####1. Load Libraries
+```{r}
+#install.packages("gridExtra")
+library(gridExtra)
+library(Hmisc)   # impute function
+library(ggplot2) #  use ggplot2 for plotting figures
+library(grid)    # viewport to put plots side by side
+library(plyr)
+```
+
+####2. Read data
+```{r}
+storm_data <- read.csv("C:/Users/mom/Documents/RepData_PeerAssessment2/repdata-data-StormData.csv.bz2")
+```
+####3. Check number of rows
+```{r}
+dim(storm_data)
+```
+####4. Examine first few rows
+```{r}
+head(storm_data)
+```
+####5. Extract the columns related to economic and health impact
+```{r}
+keep_col <- c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", 
+              "CROPDMGEXP")
+storm_data_1 <- storm_data[keep_col]
+```
+####6.  Identify property damage exponents
+```{r}
+unique(storm_data_1$PROPDMGEXP)
+```
+####7.  Identify crop damage exponents
+```{r}
+unique(storm_data_1$CROPDMGEXP)
+```
+####8. Refactor PROPDMGEXP and obtain absolute value
+```{r}
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "K"] <- 1000
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "M"] <- 1e+06
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == ""]  <- 1
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "B"] <- 1e+09
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "m"] <- 1e+06
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "0"] <- 1
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "5"] <- 1e+05
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "6"] <- 1e+06
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "4"] <- 10000
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "2"] <- 100
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "3"] <- 1000
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "h"] <- 100
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "7"] <- 1e+07
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "H"] <- 100
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "1"] <- 10
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "8"] <- 1e+08
+# give 0 to invalid exponent data
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "+"] <- 0
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "-"] <- 0
+storm_data_1$PROPEXP[storm_data_1$PROPDMGEXP == "?"] <- 0
+# compute the property damage value
+storm_data_1$PROPDMGVAL <- storm_data_1$PROPDMG * storm_data_1$PROPEXP
+```
+####8. Refactor CROPDMGEXP and obtain absolute value
+```{r}
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "M"] <- 1e+06
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "K"] <- 1000
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "m"] <- 1e+06
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "B"] <- 1e+09
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "0"] <- 1
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "k"] <- 1000
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "2"] <- 100
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == ""] <- 1
+# give 0 to invalid exponent data
+storm_data_1$CROPEXP[storm_data_1$CROPDMGEXP == "?"] <- 0
+# compute the crop damage value
+storm_data_1$CROPDMGVAL <- storm_data_1$CROPDMG * storm_data_1$CROPEXP
+#write csv file to play with graphing
+write.csv(storm_data_1, file = "storm.csv",row.names=FALSE, na="")
+```
+####9. Sum damage data by event
+```{r}
+fatal <- aggregate(FATALITIES ~ EVTYPE, data = storm_data_1, FUN = sum)
+injury <- aggregate(INJURIES ~ EVTYPE, data = storm_data_1, FUN = sum)
+propdmg <- aggregate(PROPDMGVAL ~ EVTYPE, data = storm_data_1, FUN = sum)
+cropdmg <- aggregate(CROPDMGVAL ~ EVTYPE, data = storm_data_1, FUN = sum)
+```
+#Results
+###Across the United States, Which types of events are most harmful with respect to population health?
+```{r}
+# get top10 event with highest fatalities
+fatal10 <- fatal[order(-fatal$FATALITIES), ][1:10, ]
+# get top10 event with highest injuries
+injury10 <- injury[order(-injury$INJURIES), ][1:10, ]
+par(mfrow = c(1, 2), mar = c(12, 4, 3, 2), mgp = c(3, 1, 0), cex = 0.8)
+barplot(fatal10$FATALITIES, las = 3, names.arg = fatal10$EVTYPE, main = "Events With The Top 10 Highest Fatalities", 
+    ylab = "number of fatalities", col = "orange")
+barplot(injury10$INJURIES, las = 3, names.arg = injury10$EVTYPE, main = "Events With the Top 10 Highest Injuries", 
+    ylab = "number of injuries", col = "orange")
+```
+
+
+
+
+###Tornados cause the most deaths and injuries.
+##Across the United States, which types of events have the greatest economic consequences?
+```{r}
+# get top 10 events with highest property damage
+propdmg10 <- propdmg[order(-propdmg$PROPDMGVAL), ][1:10, ]
+# get top 10 events with highest crop damage
+cropdmg10 <- cropdmg[order(-cropdmg$CROPDMGVAL), ][1:10, ]
+# writing csv files so I can play with plots separatly without loading large data
+write.csv(propdmg10, file = "prop.csv",row.names=FALSE, na="")
+write.csv(cropdmg10, file = "crop.csv",row.names=FALSE, na="")
+prop <- read.csv("C:/Users/mom/Documents/RepData_PeerAssessment2/prop.csv")
+y <- prop
+y$PROPDMGVAL <- y$PROPDMGVAL/(10^9)  
+y
+y$EVTYPE <- factor(y$EVTYPE, levels = y$EVTYPE)
+q <- qplot(EVTYPE,PROPDMGVAL,data = y, 
+      main="Property Damage by Eventype", 
+      ylab="Damage in billions",xlab="Eventype") +
+      geom_bar(stat = "identity",fill="orange") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+crop <- read.csv("C:/Users/mom/Documents/RepData_PeerAssessment2/crop.csv")
+z <- crop
+# divide so numbers readble
+z$CROPDMGVAL <- z$CROPDMGVAL/(10^9)  
+# tell ggplot fator is ordered
+z$EVTYPE <- factor(z$EVTYPE, levels = z$EVTYPE)
+q1 <- qplot(EVTYPE,CROPDMGVAL,data= z, 
+           main="Crop Damage by Eventype", 
+           ylab="Damage in billions",xlab="Eventype") +
+  geom_bar(stat = "identity",fill="orange") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+pushViewport(viewport(layout = grid.layout(1, 2)))
+print(q, vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+print(q1,vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+```
+
+
+
+
+
+
+###Flood, hurricane + typhoon, tornados have caused the greatest damage to properties. Drought and flood have caused for the greatest damage to crops.
